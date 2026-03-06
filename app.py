@@ -348,7 +348,7 @@ def compute_polygon_mean_timeseries(file_path, idx_start, idx_end, rows, cols):
 velocity_m_yr, vel_attrs = load_h5_dataset(str(VELOCITY_H5), "velocity")
 velocity_std_m_yr, _ = load_h5_dataset(str(VELOCITY_H5), "velocityStd")
 temporal_coh, _ = load_h5_dataset(str(COH_H5), "temporalCoherence")
-dates = load_dates(str(TS_H5_RUNTIME_RUNTIME))
+dates = load_dates(str(TS_H5_RUNTIME))
 
 velocity_std_mm_yr = velocity_std_m_yr * 1000.0
 xs_proj, ys_proj, *_ = get_projected_axes(vel_attrs, velocity_m_yr.shape)
