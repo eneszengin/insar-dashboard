@@ -7,3 +7,4 @@ folium>=0.16
 streamlit-folium>=0.20
 pyproj>=3.6
 matplotlib>=3.8
+gdown
