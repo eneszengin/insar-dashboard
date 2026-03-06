@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import h5py
 import folium
+import tempfile
 from folium.raster_layers import ImageOverlay
 from folium.features import DivIcon
 from folium.plugins import Draw
@@ -29,7 +30,7 @@ BASE_DIR = Path(__file__).resolve().parent
 MINTPY_DIR = BASE_DIR / "data"
 VELOCITY_H5 = MINTPY_DIR / "velocity.h5"
 COH_H5 = MINTPY_DIR / "temporalCoherence.h5"
-TS_H5 = MINTPY_DIR / "timeseries.h5"
+TS_H5_RUNTIME = MINTPY_DIR / "timeseries.h5"
 
 st.title("Bozuyuk InSAR Dashboard")
 st.caption("Selected-interval cumulative displacement, interval velocity, point analysis, A-B profile and polygon statistics")
@@ -49,10 +50,35 @@ if "map_zoom" not in st.session_state:
 # --------------------------------------------------
 # CHECK FILES
 # --------------------------------------------------
-missing = [p.name for p in [VELOCITY_H5, COH_H5, TS_H5] if not p.exists()]
-if missing:
-    st.error(f"Eksik dosyalar: {', '.join(missing)}")
+missing_static = [p.name for p in [VELOCITY_H5, COH_H5] if not p.exists()]
+if missing_static:
+    st.error(f"Eksik statik dosyalar: {', '.join(missing_static)}")
     st.stop()
+
+TS_H5_RUNTIME = TS_H5_RUNTIME
+
+if not TS_H5_RUNTIME.exists():
+    st.warning(
+        "timeseries.h5 GitHub reposunda yok. Devam etmek için aşağıdan dosyayı yükleyin."
+    )
+
+    uploaded_ts = st.sidebar.file_uploader(
+        "timeseries.h5 yükle",
+        type=["h5"],
+        help="MintPy timeseries.h5 dosyanızı seçin"
+    )
+
+    if uploaded_ts is None:
+        st.stop()
+
+    tmp_dir = Path(tempfile.gettempdir()) / "insar_dashboard"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    tmp_ts_path = tmp_dir / "timeseries.h5"
+    with open(tmp_ts_path, "wb") as f:
+        f.write(uploaded_ts.getbuffer())
+
+    TS_H5_RUNTIME_RUNTIME_RUNTIME = tmp_ts_path
 
 # --------------------------------------------------
 # HELPERS
@@ -322,7 +348,7 @@ def compute_polygon_mean_timeseries(file_path, idx_start, idx_end, rows, cols):
 velocity_m_yr, vel_attrs = load_h5_dataset(str(VELOCITY_H5), "velocity")
 velocity_std_m_yr, _ = load_h5_dataset(str(VELOCITY_H5), "velocityStd")
 temporal_coh, _ = load_h5_dataset(str(COH_H5), "temporalCoherence")
-dates = load_dates(str(TS_H5))
+dates = load_dates(str(TS_H5_RUNTIME_RUNTIME))
 
 velocity_std_mm_yr = velocity_std_m_yr * 1000.0
 xs_proj, ys_proj, *_ = get_projected_axes(vel_attrs, velocity_m_yr.shape)
@@ -377,8 +403,8 @@ if duration_days <= 0:
     st.warning("Seçilen aralık en az iki farklı tarihe yayılmalı.")
     st.stop()
 
-ts_start_m = load_timeseries_slice(str(TS_H5), idx_start)
-ts_end_m = load_timeseries_slice(str(TS_H5), idx_end)
+ts_start_m = load_timeseries_slice(str(TS_H5_RUNTIME), idx_start)
+ts_end_m = load_timeseries_slice(str(TS_H5_RUNTIME), idx_end)
 
 cumulative_disp_mm = (ts_end_m - ts_start_m) * 1000.0
 interval_vel_mm_yr = cumulative_disp_mm / duration_days * 365.25
@@ -597,7 +623,7 @@ if clicked:
     row = max(0, min(row, overlay_arr.shape[0] - 1))
     col = max(0, min(col, overlay_arr.shape[1] - 1))
 
-    point_ts_m = load_point_timeseries(str(TS_H5), row, col)
+    point_ts_m = load_point_timeseries(str(TS_H5_RUNTIME), row, col)
     point_ts_mm = point_ts_m * 1000.0
 
     point_sel_dates = dates[idx_start:idx_end + 1]
@@ -746,7 +772,7 @@ if polygon_feature is not None:
             pm6.metric("Polygon mean displacement", f"{np.nanmean(cumulative_disp_mm[valid_poly_mask]):.2f} mm")
 
             poly_sel_dates = dates[idx_start:idx_end + 1]
-            poly_abs_mm = compute_polygon_mean_timeseries(str(TS_H5), idx_start, idx_end, poly_rows, poly_cols)
+            poly_abs_mm = compute_polygon_mean_timeseries(str(TS_H5_RUNTIME), idx_start, idx_end, poly_rows, poly_cols)
             poly_cum_mm = poly_abs_mm - poly_abs_mm[0]
 
             poly_dt_days = np.diff(poly_sel_dates.values.astype("datetime64[D]")).astype(int).astype(float)
