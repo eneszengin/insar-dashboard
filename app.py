@@ -1,4 +1,3 @@
-
 import streamlit as st
 import streamlit.components.v1 as components
 from pathlib import Path
@@ -6,7 +5,7 @@ import numpy as np
 import pandas as pd
 import h5py
 import folium
-import tempfile
+import gdown
 from folium.raster_layers import ImageOverlay
 from folium.features import DivIcon
 from folium.plugins import Draw
@@ -30,7 +29,9 @@ BASE_DIR = Path(__file__).resolve().parent
 MINTPY_DIR = BASE_DIR / "data"
 VELOCITY_H5 = MINTPY_DIR / "velocity.h5"
 COH_H5 = MINTPY_DIR / "temporalCoherence.h5"
-TS_H5_RUNTIME = MINTPY_DIR / "timeseries.h5"
+TS_H5 = MINTPY_DIR / "timeseries.h5"
+
+DRIVE_FILE_ID = "1FNwX4QBNUIdibVchWvHqP3fTBW5pvVwY"
 
 st.title("Bozuyuk InSAR Dashboard")
 st.caption("Selected-interval cumulative displacement, interval velocity, point analysis, A-B profile and polygon statistics")
@@ -55,30 +56,35 @@ if missing_static:
     st.error(f"Eksik statik dosyalar: {', '.join(missing_static)}")
     st.stop()
 
-TS_H5_RUNTIME = TS_H5_RUNTIME
 
-if not TS_H5_RUNTIME.exists():
-    st.warning(
-        "timeseries.h5 GitHub reposunda yok. Devam etmek için aşağıdan dosyayı yükleyin."
-    )
+def ensure_timeseries_file():
+    # Streamlit Cloud'da yazılabilir geçici klasör
+    tmp_path = Path("/tmp/timeseries.h5")
 
-    uploaded_ts = st.sidebar.file_uploader(
-        "timeseries.h5 yükle",
-        type=["h5"],
-        help="MintPy timeseries.h5 dosyanızı seçin"
-    )
+    # Yerelde data klasöründe varsa onu kullan
+    if TS_H5.exists():
+        return TS_H5
 
-    if uploaded_ts is None:
+    # Cloud tarafında daha önce indirildiyse tekrar indirme
+    if tmp_path.exists() and tmp_path.stat().st_size > 0:
+        return tmp_path
+
+    try:
+        with st.spinner("timeseries.h5 Google Drive'dan indiriliyor..."):
+            url = f"https://drive.google.com/uc?id={DRIVE_FILE_ID}"
+            gdown.download(url, str(tmp_path), quiet=False)
+    except Exception as e:
+        st.error(f"timeseries.h5 indirilemedi: {e}")
         st.stop()
 
-    tmp_dir = Path(tempfile.gettempdir()) / "insar_dashboard"
-    tmp_dir.mkdir(parents=True, exist_ok=True)
+    if not tmp_path.exists() or tmp_path.stat().st_size == 0:
+        st.error("timeseries.h5 indirildi gibi göründü ama dosya bulunamadı veya boş.")
+        st.stop()
 
-    tmp_ts_path = tmp_dir / "timeseries.h5"
-    with open(tmp_ts_path, "wb") as f:
-        f.write(uploaded_ts.getbuffer())
+    return tmp_path
 
-    TS_H5_RUNTIMEE = tmp_ts_path
+
+TS_H5_RUNTIME = ensure_timeseries_file()
 
 # --------------------------------------------------
 # HELPERS
@@ -88,6 +94,7 @@ def _to_text(v):
         return v.decode("utf-8", errors="ignore")
     return str(v)
 
+
 @st.cache_data
 def load_h5_dataset(file_path: str, dataset_name: str):
     with h5py.File(file_path, "r") as f:
@@ -96,11 +103,13 @@ def load_h5_dataset(file_path: str, dataset_name: str):
     arr = np.where(np.isfinite(arr), arr, np.nan)
     return arr, attrs
 
+
 @st.cache_data
 def load_dates(file_path: str):
     with h5py.File(file_path, "r") as f:
         raw_dates = f["date"][:]
     return pd.to_datetime([d.decode("utf-8") for d in raw_dates], format="%Y%m%d")
+
 
 @st.cache_data
 def load_timeseries_slice(file_path: str, idx: int):
@@ -108,11 +117,13 @@ def load_timeseries_slice(file_path: str, idx: int):
         arr = f["timeseries"][idx, :, :].astype("float32")
     return np.where(np.isfinite(arr), arr, np.nan)
 
+
 @st.cache_data
 def load_point_timeseries(file_path: str, row: int, col: int):
     with h5py.File(file_path, "r") as f:
         arr = f["timeseries"][:, row, col].astype("float32")
     return np.where(np.isfinite(arr), arr, np.nan)
+
 
 def get_projected_axes(attrs, shape):
     x_first = float(attrs["X_FIRST"])
@@ -123,6 +134,7 @@ def get_projected_axes(attrs, shape):
     xs = x_first + np.arange(w) * x_step
     ys = y_first + np.arange(h) * y_step
     return xs, ys, x_first, y_first, x_step, y_step
+
 
 def get_projected_bounds(attrs, shape):
     xs, ys, x_first, y_first, x_step, y_step = get_projected_axes(attrs, shape)
@@ -135,6 +147,7 @@ def get_projected_bounds(attrs, shape):
     north = max(y_first, y_last) + abs(y_step) / 2.0
     return west, south, east, north
 
+
 def projected_bounds_to_latlon(bounds_proj, src_epsg):
     west, south, east, north = bounds_proj
     t = Transformer.from_crs(src_epsg, "EPSG:4326", always_xy=True)
@@ -142,12 +155,14 @@ def projected_bounds_to_latlon(bounds_proj, src_epsg):
     ne_lon, ne_lat = t.transform(east, north)
     return [[sw_lat, sw_lon], [ne_lat, ne_lon]]
 
+
 def nearest_pixel_from_latlon(lat, lon, xs_proj, ys_proj, src_epsg):
     t = Transformer.from_crs("EPSG:4326", src_epsg, always_xy=True)
     x_proj, y_proj = t.transform(lon, lat)
     col = int(np.argmin(np.abs(xs_proj - x_proj)))
     row = int(np.argmin(np.abs(ys_proj - y_proj)))
     return row, col, x_proj, y_proj
+
 
 def array_to_rgba(arr, cmap_name, vmin, vmax):
     arr2 = np.array(arr, dtype="float32")
@@ -157,6 +172,7 @@ def array_to_rgba(arr, cmap_name, vmin, vmax):
     rgba = cmap(norm(np.nan_to_num(arr2, nan=vmin)))
     rgba[..., 3] = np.where(valid, 1.0, 0.0)
     return (rgba * 255).astype("uint8")
+
 
 def nearest_date_indices(date_index, start_date, end_date):
     dvals = date_index.values.astype("datetime64[D]")
@@ -168,11 +184,13 @@ def nearest_date_indices(date_index, start_date, end_date):
         i0, i1 = i1, i0
     return i0, i1
 
+
 def safe_minmax(arr):
     valid = arr[np.isfinite(arr)]
     if valid.size == 0:
         return np.nan, np.nan
     return float(np.nanmin(valid)), float(np.nanmax(valid))
+
 
 def build_histogram(values, title, x_title):
     valid = values[np.isfinite(values)]
@@ -187,6 +205,7 @@ def build_histogram(values, title, x_title):
     )
     return fig
 
+
 def build_point_info(lat, lon, xs_proj, ys_proj, src_epsg, shape):
     row, col, x_proj, y_proj = nearest_pixel_from_latlon(lat, lon, xs_proj, ys_proj, src_epsg)
     row = max(0, min(row, shape[0] - 1))
@@ -199,6 +218,7 @@ def build_point_info(lat, lon, xs_proj, ys_proj, src_epsg, shape):
         "x_proj": float(x_proj),
         "y_proj": float(y_proj),
     }
+
 
 def sample_line_profile(point_a, point_b, arrays_dict, n_samples=None):
     row0, col0 = point_a["row"], point_a["col"]
@@ -233,6 +253,7 @@ def sample_line_profile(point_a, point_b, arrays_dict, n_samples=None):
         out[name] = arr[rows, cols]
     return out
 
+
 def add_labeled_marker(m, lat, lon, label, color):
     folium.Marker(
         location=[lat, lon],
@@ -243,6 +264,7 @@ def add_labeled_marker(m, lat, lon, label, color):
         ),
         tooltip=f"Point {label}"
     ).add_to(m)
+
 
 def build_legend_html(overlay_name, overlay_unit, scale_min, scale_max):
     tick_values = np.linspace(scale_min, scale_max, 7)
@@ -295,6 +317,7 @@ def build_legend_html(overlay_name, overlay_unit, scale_min, scale_max):
     </div>
     """
 
+
 def get_polygon_feature(map_state):
     if not map_state:
         return None
@@ -312,6 +335,7 @@ def get_polygon_feature(map_state):
             if geom.get("type") == "Polygon":
                 return feat
     return None
+
 
 def polygon_feature_to_mask(feature, xs_proj, ys_proj, src_epsg):
     if feature is None:
@@ -333,6 +357,7 @@ def polygon_feature_to_mask(feature, xs_proj, ys_proj, src_epsg):
     pts = np.column_stack([xx.ravel(), yy.ravel()])
     path = MplPath(poly_xy)
     return path.contains_points(pts).reshape(xx.shape)
+
 
 def compute_polygon_mean_timeseries(file_path, idx_start, idx_end, rows, cols):
     values = []
