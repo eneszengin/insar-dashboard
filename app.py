@@ -15,7 +15,7 @@ from matplotlib import colors, colormaps
 from matplotlib.path import Path as MplPath
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="Bozuyuk InSAR Dashboard", layout="wide")
+st.set_page_config(page_title="Bozuyuk InSAR Dashboard - MJKM", layout="wide")
 
 # --------------------------------------------------
 # CONFIG
