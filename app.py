@@ -480,17 +480,25 @@ m4.metric("Filtered pixels", f"{filtered_count:,}")
 m = folium.Map(
     location=st.session_state.map_center,
     zoom_start=st.session_state.map_zoom,
-    tiles="CartoDB positron",
-    control_scale=True
+    tiles=None,
+    control_scale=True,
+    max_zoom=22
 )
 
-folium.TileLayer("OpenStreetMap", name="OpenStreetMap").add_to(m)
+folium.TileLayer(
+    "OpenStreetMap",
+    name="OpenStreetMap",
+    max_zoom=22,
+    max_native_zoom=19
+).add_to(m)
 folium.TileLayer(
     tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     attr="Esri",
     name="Satellite",
     overlay=False,
-    control=True
+    control=True,
+    max_zoom=22,
+    max_native_zoom=19
 ).add_to(m)
 
 ImageOverlay(
@@ -561,14 +569,13 @@ map_state = st_folium(
     key="main_map",
     height=720,
     width=None,
-    center=tuple(st.session_state.map_center),
-    zoom=st.session_state.map_zoom,
     returned_objects=["last_clicked", "zoom", "center", "bounds", "all_drawings", "last_active_drawing"]
 )
 
 if map_state:
-    if map_state.get("zoom") is not None:
-        st.session_state.map_zoom = map_state["zoom"]
+    new_zoom = map_state.get("zoom")
+    if isinstance(new_zoom, (int, float)):
+        st.session_state.map_zoom = int(new_zoom)
 
     center = map_state.get("center")
     if isinstance(center, dict) and ("lat" in center) and ("lng" in center):
