@@ -15,7 +15,7 @@ from matplotlib import colors, colormaps
 from matplotlib.path import Path as MplPath
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="Bozuyuk InSAR Dashboard - MJKM", layout="wide")
+st.set_page_config(page_title="Bozuyuk InSAR Dashboard", layout="wide")
 
 # --------------------------------------------------
 # CONFIG
@@ -33,7 +33,7 @@ TS_H5 = MINTPY_DIR / "timeseries.h5"
 
 DRIVE_FILE_ID = "1FNwX4QBNUIdibVchWvHqP3fTBW5pvVwY"
 
-st.title("Bozuyuk InSAR Dashboard")
+st.title("Bozuyuk InSAR Dashboard - MJKM")
 st.caption("Selected-interval cumulative displacement, interval velocity, point analysis, A-B profile and polygon statistics")
 
 # --------------------------------------------------
