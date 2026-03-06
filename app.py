@@ -58,14 +58,11 @@ if missing_static:
 
 
 def ensure_timeseries_file():
-    # Streamlit Cloud'da yazılabilir geçici klasör
     tmp_path = Path("/tmp/timeseries.h5")
 
-    # Yerelde data klasöründe varsa onu kullan
     if TS_H5.exists():
         return TS_H5
 
-    # Cloud tarafında daha önce indirildiyse tekrar indirme
     if tmp_path.exists() and tmp_path.stat().st_size > 0:
         return tmp_path
 
@@ -279,7 +276,7 @@ def build_legend_html(overlay_name, overlay_unit, scale_min, scale_max):
         border:1px solid #d0d0d0;
         border-radius:10px;
         padding:12px 14px;
-        margin-top:6px;
+        margin-top:0px;
         margin-bottom:10px;
         box-shadow:0 1px 4px rgba(0,0,0,0.08);
         font-family:Arial, sans-serif;
@@ -475,103 +472,161 @@ m3.metric("Mean coherence", f"{np.nanmean(coh_valid):.3f}" if coh_valid.size els
 m4.metric("Filtered pixels", f"{filtered_count:,}")
 
 # --------------------------------------------------
-# MAP
+# MAP + RIGHT PANEL LAYOUT
 # --------------------------------------------------
-m = folium.Map(
-    location=st.session_state.map_center,
-    zoom_start=st.session_state.map_zoom,
-    tiles=None,
-    control_scale=True,
-    max_zoom=22
-)
+left_col, right_col = st.columns([2.1, 1.0], gap="medium")
 
-folium.TileLayer(
-    "OpenStreetMap",
-    name="OpenStreetMap",
-    max_zoom=22,
-    max_native_zoom=19
-).add_to(m)
-folium.TileLayer(
-    tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    attr="Esri",
-    name="Satellite",
-    overlay=False,
-    control=True,
-    max_zoom=22,
-    max_native_zoom=19
-).add_to(m)
+with left_col:
+    m = folium.Map(
+        location=st.session_state.map_center,
+        zoom_start=st.session_state.map_zoom,
+        tiles=None,
+        control_scale=True,
+        max_zoom=22
+    )
 
-ImageOverlay(
-    image=overlay_rgba,
-    bounds=bounds_latlon,
-    opacity=opacity,
-    interactive=True,
-    cross_origin=False,
-    origin="upper",
-    mercator_project=True,
-    name=overlay_name
-).add_to(m)
-
-folium.Marker(
-    location=[AOI_CENTER_LAT, AOI_CENTER_LON],
-    icon=DivIcon(
-        icon_size=(24, 24),
-        icon_anchor=(12, 12),
-        html='<div style="font-size:22px;color:gold;text-shadow:0 0 3px black;">★</div>'
-    ),
-    tooltip="AOI center"
-).add_to(m)
-
-folium.Circle(
-    location=[AOI_CENTER_LAT, AOI_CENTER_LON],
-    radius=AOI_RADIUS_M,
-    color="gold",
-    weight=2,
-    fill=False,
-    tooltip="AOI radius = 5 km"
-).add_to(m)
-
-if st.session_state.point_a is not None:
-    add_labeled_marker(m, st.session_state.point_a["lat"], st.session_state.point_a["lon"], "A", "#d62728")
-
-if st.session_state.point_b is not None:
-    add_labeled_marker(m, st.session_state.point_b["lat"], st.session_state.point_b["lon"], "B", "#1f77b4")
-
-if st.session_state.point_a is not None and st.session_state.point_b is not None:
-    folium.PolyLine(
-        locations=[
-            [st.session_state.point_a["lat"], st.session_state.point_a["lon"]],
-            [st.session_state.point_b["lat"], st.session_state.point_b["lon"]],
-        ],
-        color="black",
-        weight=3,
-        opacity=0.9,
-        tooltip="A-B profile line"
+    folium.TileLayer(
+        "OpenStreetMap",
+        name="OpenStreetMap",
+        max_zoom=22,
+        max_native_zoom=19
     ).add_to(m)
 
-Draw(
-    export=False,
-    draw_options={
-        "polyline": False,
-        "polygon": True,
-        "rectangle": True,
-        "circle": False,
-        "marker": False,
-        "circlemarker": False
-    },
-    edit_options={"edit": True, "remove": True}
-).add_to(m)
+    folium.TileLayer(
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="Esri",
+        name="Satellite",
+        overlay=False,
+        control=True,
+        max_zoom=22,
+        max_native_zoom=19
+    ).add_to(m)
 
-folium.LayerControl().add_to(m)
+    ImageOverlay(
+        image=overlay_rgba,
+        bounds=bounds_latlon,
+        opacity=opacity,
+        interactive=True,
+        cross_origin=False,
+        origin="upper",
+        mercator_project=True,
+        name=overlay_name
+    ).add_to(m)
 
-map_state = st_folium(
-    m,
-    key="main_map",
-    height=720,
-    width=None,
-    returned_objects=["last_clicked", "zoom", "center", "bounds", "all_drawings", "last_active_drawing"]
-)
+    folium.Marker(
+        location=[AOI_CENTER_LAT, AOI_CENTER_LON],
+        icon=DivIcon(
+            icon_size=(24, 24),
+            icon_anchor=(12, 12),
+            html='<div style="font-size:22px;color:gold;text-shadow:0 0 3px black;">★</div>'
+        ),
+        tooltip="AOI center"
+    ).add_to(m)
 
+    folium.Circle(
+        location=[AOI_CENTER_LAT, AOI_CENTER_LON],
+        radius=AOI_RADIUS_M,
+        color="gold",
+        weight=2,
+        fill=False,
+        tooltip="AOI radius = 5 km"
+    ).add_to(m)
+
+    if st.session_state.point_a is not None:
+        add_labeled_marker(m, st.session_state.point_a["lat"], st.session_state.point_a["lon"], "A", "#d62728")
+
+    if st.session_state.point_b is not None:
+        add_labeled_marker(m, st.session_state.point_b["lat"], st.session_state.point_b["lon"], "B", "#1f77b4")
+
+    if st.session_state.point_a is not None and st.session_state.point_b is not None:
+        folium.PolyLine(
+            locations=[
+                [st.session_state.point_a["lat"], st.session_state.point_a["lon"]],
+                [st.session_state.point_b["lat"], st.session_state.point_b["lon"]],
+            ],
+            color="black",
+            weight=3,
+            opacity=0.9,
+            tooltip="A-B profile line"
+        ).add_to(m)
+
+    Draw(
+        export=False,
+        draw_options={
+            "polyline": False,
+            "polygon": True,
+            "rectangle": True,
+            "circle": False,
+            "marker": False,
+            "circlemarker": False
+        },
+        edit_options={"edit": True, "remove": True}
+    ).add_to(m)
+
+    folium.LayerControl().add_to(m)
+
+    map_state = st_folium(
+        m,
+        key="main_map",
+        height=520,
+        width=None,
+        returned_objects=["last_clicked", "zoom", "center", "bounds", "all_drawings", "last_active_drawing"]
+    )
+
+with right_col:
+    components.html(
+        build_legend_html(overlay_name, overlay_unit, legend_min, legend_max),
+        height=150,
+        scrolling=False
+    )
+
+    clicked = map_state.get("last_clicked", None) if map_state else None
+    polygon_feature = get_polygon_feature(map_state)
+
+    st.subheader("Map interaction")
+
+    if clicked:
+        st.write(f"Last clicked point: **{clicked['lat']:.6f}, {clicked['lng']:.6f}**")
+    else:
+        st.write("Last clicked point: —")
+
+    if polygon_feature is not None:
+        st.write("Active polygon: **available**")
+    else:
+        st.write("Active polygon: —")
+
+    if st.session_state.point_a is not None:
+        st.write(f"**Point A:** {st.session_state.point_a['lat']:.6f}, {st.session_state.point_a['lon']:.6f}")
+    else:
+        st.write("**Point A:** —")
+
+    if st.session_state.point_b is not None:
+        st.write(f"**Point B:** {st.session_state.point_b['lat']:.6f}, {st.session_state.point_b['lon']:.6f}")
+    else:
+        st.write("**Point B:** —")
+
+    if st.button("Use last clicked as Point A", use_container_width=True):
+        if clicked:
+            st.session_state.point_a = build_point_info(
+                clicked["lat"], clicked["lng"], xs_proj, ys_proj, SRC_EPSG, overlay_arr.shape
+            )
+            st.rerun()
+
+    if st.button("Use last clicked as Point B", use_container_width=True):
+        if clicked:
+            st.session_state.point_b = build_point_info(
+                clicked["lat"], clicked["lng"], xs_proj, ys_proj, SRC_EPSG, overlay_arr.shape
+            )
+            st.rerun()
+
+    if st.button("Clear A / B", use_container_width=True):
+        st.session_state.point_a = None
+        st.session_state.point_b = None
+        st.rerun()
+
+# --------------------------------------------------
+# UPDATE MAP STATE
+# --------------------------------------------------
 if map_state:
     new_zoom = map_state.get("zoom")
     if isinstance(new_zoom, (int, float)):
@@ -581,53 +636,8 @@ if map_state:
     if isinstance(center, dict) and ("lat" in center) and ("lng" in center):
         st.session_state.map_center = [center["lat"], center["lng"]]
 
-# --------------------------------------------------
-# LEGEND
-# --------------------------------------------------
-components.html(
-    build_legend_html(overlay_name, overlay_unit, legend_min, legend_max),
-    height=150,
-    scrolling=False
-)
-
-# --------------------------------------------------
-# MAP INTERACTION PANEL
-# --------------------------------------------------
 clicked = map_state.get("last_clicked", None) if map_state else None
 polygon_feature = get_polygon_feature(map_state)
-
-st.subheader("Map interaction")
-
-if clicked:
-    st.write(f"Last clicked point: **{clicked['lat']:.6f}, {clicked['lng']:.6f}**")
-else:
-    st.write("Last clicked point: —")
-
-if polygon_feature is not None:
-    st.write("Active polygon: **available**")
-else:
-    st.write("Active polygon: —")
-
-cbtn1, cbtn2, cbtn3 = st.columns(3)
-
-if cbtn1.button("Use last clicked as Point A", use_container_width=True):
-    if clicked:
-        st.session_state.point_a = build_point_info(
-            clicked["lat"], clicked["lng"], xs_proj, ys_proj, SRC_EPSG, overlay_arr.shape
-        )
-        st.rerun()
-
-if cbtn2.button("Use last clicked as Point B", use_container_width=True):
-    if clicked:
-        st.session_state.point_b = build_point_info(
-            clicked["lat"], clicked["lng"], xs_proj, ys_proj, SRC_EPSG, overlay_arr.shape
-        )
-        st.rerun()
-
-if cbtn3.button("Clear A / B", use_container_width=True):
-    st.session_state.point_a = None
-    st.session_state.point_b = None
-    st.rerun()
 
 # --------------------------------------------------
 # SUMMARY HISTOGRAMS
@@ -636,12 +646,12 @@ c1, c2 = st.columns(2)
 with c1:
     st.plotly_chart(
         build_histogram(overlay_arr, f"{overlay_name} distribution", overlay_unit),
-        width="stretch"
+        use_container_width=True
     )
 with c2:
     st.plotly_chart(
         build_histogram(coh_valid, "Temporal coherence distribution", "coherence"),
-        width="stretch"
+        use_container_width=True
     )
 
 # --------------------------------------------------
@@ -698,7 +708,7 @@ if clicked:
             height=340,
             margin=dict(l=10, r=10, t=40, b=10)
         )
-        st.plotly_chart(fig_disp, width="stretch")
+        st.plotly_chart(fig_disp, use_container_width=True)
 
     with d2:
         fig_rate = go.Figure()
@@ -710,7 +720,7 @@ if clicked:
             height=340,
             margin=dict(l=10, r=10, t=40, b=10)
         )
-        st.plotly_chart(fig_rate, width="stretch")
+        st.plotly_chart(fig_rate, use_container_width=True)
 
 # --------------------------------------------------
 # A-B PROFILE
@@ -768,10 +778,10 @@ if st.session_state.point_a is not None and st.session_state.point_b is not None
 
     r1, r2 = st.columns(2)
     with r1:
-        st.plotly_chart(fig_prof_vel, width="stretch")
+        st.plotly_chart(fig_prof_vel, use_container_width=True)
     with r2:
-        st.plotly_chart(fig_prof_disp, width="stretch")
-    st.plotly_chart(fig_prof_coh, width="stretch")
+        st.plotly_chart(fig_prof_disp, use_container_width=True)
+    st.plotly_chart(fig_prof_coh, use_container_width=True)
 
 # --------------------------------------------------
 # POLYGON ANALYSIS
@@ -832,7 +842,7 @@ if polygon_feature is not None:
                     height=340,
                     margin=dict(l=10, r=10, t=40, b=10)
                 )
-                st.plotly_chart(fig_poly_disp, width="stretch")
+                st.plotly_chart(fig_poly_disp, use_container_width=True)
 
             with g2:
                 fig_poly_rate = go.Figure()
@@ -849,19 +859,19 @@ if polygon_feature is not None:
                     height=340,
                     margin=dict(l=10, r=10, t=40, b=10)
                 )
-                st.plotly_chart(fig_poly_rate, width="stretch")
+                st.plotly_chart(fig_poly_rate, use_container_width=True)
 
             h1, h2 = st.columns(2)
             with h1:
                 st.plotly_chart(
                     build_histogram(poly_overlay_vals, f"Polygon {overlay_name} distribution", overlay_unit),
-                    width="stretch"
+                    use_container_width=True
                 )
             with h2:
                 if poly_coh_vals.size:
                     st.plotly_chart(
                         build_histogram(poly_coh_vals, "Polygon coherence distribution", "coherence"),
-                        width="stretch"
+                        use_container_width=True
                     )
                 else:
                     st.info("Polygon için coherence histogramı üretilemedi.")
